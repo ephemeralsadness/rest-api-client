@@ -4,6 +4,7 @@ import json
 from os import path
 import requests
 from urllib.parse import urljoin
+import shutil
 
 TodoElement = namedtuple('TodoElement', ['task_id', 'name', 'done'])
 
@@ -18,6 +19,7 @@ class Client:
         }
         self.USER_ROUTE = '/user/'
         self.TODO_ROUTE = '/todo/'
+        self.FILES_ROUTE = '/files/'
 
         requests.post(urljoin(url, self.USER_ROUTE), data=self.data)
 
@@ -63,3 +65,42 @@ class Client:
         content = json.loads(response.content)
         if not content['success']:
             raise Exception('No changes! Please make correct request next time!')
+
+    def get_file(self, filename: str, filepath) -> None:
+        data = deepcopy(self.data)
+        response = requests.get(urljoin(self.url, path.join(self.FILES_ROUTE, filename)), data=data, stream=True)
+        response.raise_for_status()
+
+        with open(filepath, 'wb') as f:
+            response.raw.decode_content = True
+            shutil.copyfileobj(response.raw, f)
+
+    def get_available_files(self) -> list[str]:
+        data = deepcopy(self.data)
+        response = requests.get(urljoin(self.url, self.FILES_ROUTE), data=data)
+
+        content = json.loads(response.content)
+        if not content['success']:
+            raise Exception('You did never upload any files!')
+
+        return content['files']
+
+    def send_file(self, filepath: str) -> None:
+        data = deepcopy(self.data)
+        files = {'file': open(filepath, 'rb')}
+        response = requests.post(urljoin(self.url, self.FILES_ROUTE), data=data, files=files)
+        response.raise_for_status()
+
+        content = json.loads(response.content)
+        if not content['success']:
+            raise Exception('There is an error with your file!')
+
+    def remove_file(self, filename: str) -> None:
+        data = deepcopy(self.data)
+        response = requests.delete(urljoin(self.url, path.join(self.FILES_ROUTE, filename)), data=data)
+        response.raise_for_status()
+
+        content = json.loads(response.content)
+        if not content['success']:
+            raise Exception('No changes! Please make correct request next time!')
+
